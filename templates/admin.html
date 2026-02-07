@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Workshop Admin</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 24px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 12px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background: #f4f4f4; }
+    form.inline { display: inline; }
+    .blocked { color: #c0392b; }
+  </style>
+</head>
+<body>
+  <h2>Workshop Admin</h2>
+  <p>Signed in as: {{ admin_email }}</p>
+
+  <h3>Add / Update User</h3>
+  <form method="post" action="/admin/users">
+    <label>Email <input type="email" name="email" required></label>
+    <label>Alias <input type="text" name="alias"></label>
+    <label>Req limit <input type="number" name="request_limit" min="1" placeholder="default"></label>
+    <label>Concurrency <input type="number" name="concurrency_cap" min="1" placeholder="default"></label>
+    <label><input type="checkbox" name="blocked"> Blocked</label>
+    <button type="submit">Save</button>
+  </form>
+
+  <h3>Users</h3>
+  <table>
+    <tr>
+      <th>Email</th><th>Alias</th><th>Req limit</th><th>Used</th><th>Conc cap</th><th>Active</th><th>Blocked</th><th>Actions</th>
+    </tr>
+    {% for u in users %}
+    <tr class="{{ 'blocked' if u.blocked else '' }}">
+      <td>{{ u.email }}</td>
+      <td>{{ u.alias or '' }}</td>
+      <td>{{ u.request_limit }}</td>
+      <td>{{ u.requests_used }}</td>
+      <td>{{ u.concurrency_cap }}</td>
+      <td>{{ u.active_streams }}</td>
+      <td>{{ 'Yes' if u.blocked else 'No' }}</td>
+      <td>
+        <form class="inline" method="post" action="/admin/users/{{ u.email }}/toggle">
+          <button type="submit">{{ 'Unblock' if u.blocked else 'Block' }}</button>
+        </form>
+        <form class="inline" method="post" action="/admin/users/{{ u.email }}/delete" onsubmit="return confirm('Delete user?');">
+          <button type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</body>
+</html>

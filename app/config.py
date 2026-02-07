@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     default_concurrency_cap: int = Field(default=1)
     allow_registration_endpoint: bool = Field(default=True)
     admin_emails: List[str] = Field(default_factory=lambda: ["btc.esmt.workshop@gmail.com"])
+    admin_ui_user: str = Field(default="alxefremov")
+    admin_ui_password: str = Field(default="adminadmin")
 
     @field_validator("project_id")
     @classmethod

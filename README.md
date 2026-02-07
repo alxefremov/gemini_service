@@ -114,6 +114,7 @@ Take note of the `Service URL` from output.
 
 Note: first deploy will create an Artifact Registry repo `cloud-run-source-deploy` in the region — answer `Y`.
 The script builds via Dockerfile (Cloud Build) and deploys the built image to Cloud Run.
+If you add UI templates or other files, ensure they are not excluded by `.gcloudignore`/`.gitignore`; otherwise gcloud may omit them from the build context.
 
 **9. Quick health check**
 ```bash
@@ -150,6 +151,7 @@ curl -X POST https://<SERVICE_URL>/register \
 ```
 - Get user: `GET /user/{email}`
 - Delete user: `DELETE /user/{email}`
+- Web UI: open `https://<SERVICE_URL>/admin` (HTTP Basic auth, default `alxefremov / adminadmin`). From there you can add/update users, block/unblock, delete, and view basic usage fields.
 
 Full API reference: `docs/API.md`.
 

@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import AsyncIterator, Dict
+from typing import AsyncIterator, Dict, Optional
 
 import jwt
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status, Form
+from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from google.api_core.exceptions import GoogleAPIError
 from pydantic import BaseModel
 
@@ -21,11 +23,14 @@ from .schemas import (
     TokenRequest,
     TokenResponse,
     UserInfo,
+    AdminUserForm,
 )
 
 logger = logging.getLogger("uvicorn.error")
 settings = get_settings()
 app = FastAPI(title="Gemini Workshop Gateway")
+templates = Jinja2Templates(directory="templates")
+security = HTTPBasic()
 
 
 class ErrorResponse(BaseModel):
@@ -159,6 +164,80 @@ def delete_user(email: str, authorization: str | None = Header(default=None), x_
     _require_admin(authorization, x_admin_email)
     deleted = storage.delete_user(email)
     return DeleteResponse(deleted=deleted)
+
+
+# -----------------------
+# Admin Web UI (basic auth)
+# -----------------------
+
+
+def _admin_basic(credentials: HTTPBasicCredentials = Depends(security)) -> HTTPBasicCredentials:
+    if not (
+        credentials.username == settings.admin_ui_user
+        and credentials.password == settings.admin_ui_password
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials
+
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_dashboard(request: Request, creds: HTTPBasicCredentials = Depends(_admin_basic)):
+    users = storage.list_users(limit=500)
+    return templates.TemplateResponse(
+        "admin.html",
+        {
+            "request": request,
+            "users": users,
+            "admin_email": creds.username,
+        },
+    )
+
+
+@app.post("/admin/users", response_class=RedirectResponse)
+def admin_add_user(
+    request: Request,
+    email: str = Form(...),
+    alias: Optional[str] = Form(None),
+    request_limit: Optional[int] = Form(None),
+    concurrency_cap: Optional[int] = Form(None),
+    blocked: Optional[str] = Form(None),
+    creds: HTTPBasicCredentials = Depends(_admin_basic),
+):
+    users_payload = [
+        {
+            "email": email,
+            "alias": alias or None,
+            "request_limit": int(request_limit) if request_limit else None,
+            "concurrency_cap": int(concurrency_cap) if concurrency_cap else None,
+            "blocked": True if blocked else False,
+        }
+    ]
+    storage.register_users(users_payload)
+    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/admin/users/{email}/delete", response_class=RedirectResponse)
+def admin_delete_user(
+    email: str,
+    creds: HTTPBasicCredentials = Depends(_admin_basic),
+):
+    storage.delete_user(email)
+    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post("/admin/users/{email}/toggle", response_class=RedirectResponse)
+def admin_toggle_block(
+    email: str,
+    creds: HTTPBasicCredentials = Depends(_admin_basic),
+):
+    user = storage.get_user(email)
+    if user:
+        storage.update_user(email, {"blocked": not user.blocked})
+    return RedirectResponse(url="/admin", status_code=status.HTTP_303_SEE_OTHER)
 
 
 async def _stream_chat(email: str, chat_body: ChatRequest) -> AsyncIterator[bytes]:

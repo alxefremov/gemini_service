@@ -89,6 +89,11 @@ def get_user(email: str) -> Optional[UserRecord]:
     return UserRecord.from_dict(email.lower(), snap.to_dict())
 
 
+def list_users(limit: int = 200) -> List[UserRecord]:
+    docs = _users_collection().limit(limit).stream()
+    return [UserRecord.from_dict(doc.id, doc.to_dict()) for doc in docs]
+
+
 @firestore.transactional
 def _reserve_transaction(transaction, email: str) -> UserRecord:
     doc_ref = _users_collection().document(email.lower())
@@ -137,6 +142,17 @@ def delete_user(email: str) -> bool:
         return False
     doc_ref.delete()
     return True
+
+
+def update_user(email: str, fields: Dict) -> Optional[UserRecord]:
+    doc_ref = _users_collection().document(email.lower())
+    snap = doc_ref.get()
+    if not snap.exists:
+        return None
+    data = snap.to_dict()
+    data.update(fields)
+    doc_ref.set(data, merge=True)
+    return UserRecord.from_dict(email.lower(), data)
 
 
 def _log_usage(transaction, email: str, action: str):

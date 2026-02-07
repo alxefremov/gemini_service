@@ -59,3 +59,11 @@ class UserInfo(BaseModel):
 
 class DeleteResponse(BaseModel):
     deleted: bool
+
+
+class AdminUserForm(BaseModel):
+    email: EmailStr
+    alias: Optional[str] = None
+    request_limit: Optional[int] = Field(default=None, ge=1)
+    concurrency_cap: Optional[int] = Field(default=None, ge=1)
+    blocked: Optional[bool] = None
